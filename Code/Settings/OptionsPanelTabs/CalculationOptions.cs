@@ -33,6 +33,7 @@ namespace LifecycleRebalance
         private UISlider _schoolStartSlider;
         private UISlider _teenStartSlider;
         private UISlider _youngStartSlider;
+        private UISlider _uniYearsSlider;
         private UILabel _shOnlyLabel1;
         private UILabel _shOnlyLabel2;
 
@@ -134,6 +135,13 @@ namespace LifecycleRebalance
                     ModSettings.Settings.YoungStartYear = (int)value;
                 };
 
+                _uniYearsSlider = AgeSlider("University Years", ModSettings.MinUniYears, ModSettings.MaxUniYears, ModSettings.Settings.UniYears);
+                _uniYearsSlider.eventValueChanged += (control, value) =>
+                {
+                    // Update mod settings.
+                    ModSettings.Settings.UniYears = (int)value;
+                };
+
                 // Sunset harbor only labels.
                 _shOnlyLabel1 = UILabels.AddLabel(Panel, _retirementSlider.parent.relativePosition.x, _retirementSlider.parent.relativePosition.y, Translations.Translate("LBR_SHO"));
                 _shOnlyLabel2 = UILabels.AddLabel(Panel, _schoolStartSlider.parent.relativePosition.x, _schoolStartSlider.parent.relativePosition.y, Translations.Translate("LBR_SHO"));
@@ -207,6 +215,7 @@ namespace LifecycleRebalance
                     _schoolStartSlider.parent.isVisible = isChecked;
                     _teenStartSlider.parent.isVisible = isChecked;
                     _youngStartSlider.parent.isVisible = isChecked;
+                    _uniYearsSlider.parent.isVisible = isChecked;
                 };
             }
         }
@@ -230,6 +239,7 @@ namespace LifecycleRebalance
                 _schoolStartSlider.parent.Hide();
                 _teenStartSlider.parent.Hide();
                 _youngStartSlider.parent.Hide();
+                _uniYearsSlider.parent.Hide();
 
                 // Show 'Sunset Harbor only' labels.
                 _shOnlyLabel1.Show();
@@ -254,6 +264,7 @@ namespace LifecycleRebalance
                     _schoolStartSlider.parent.Show();
                     _teenStartSlider.parent.Show();
                     _youngStartSlider.parent.Show();
+                    _uniYearsSlider.parent.Show();
                 }
 
                 // Show 'Sunset Harbor only' labels.

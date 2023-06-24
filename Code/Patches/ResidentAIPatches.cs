@@ -30,21 +30,11 @@ namespace LifecycleRebalance
         [HarmonyPrefix]
         public static bool CanMakeBabies(ref bool __result, uint citizenID, ref Citizen data)
         {
-            // data.m_family  access group data?
-            // Only check child 1 and 2. Don't care about 3, won't fit if there's someone there :)
-
-            // Unlock males within all groups. Find partner except for initial seeding is the exact same age group, so shortcut is allowed
             __result =
                 !data.Dead &&
-                (
-
-                  // Females are now limited to the time that they have aged.  Males are excluded from this calculation so females can still have children.
-                  (Citizen.GetGender(citizenID) == Citizen.Gender.Male) ||
-
-                  // Exclude females over default maximum adult age (51.4 years).
-                  (data.Age <= 180 &&
-                  ((citizenID % DataStore.LifeSpanMultiplier) == Threading.Counter) && (Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult)))
-                  && (data.m_flags & Citizen.Flags.MovingIn) == Citizen.Flags.None;
+                (Citizen.GetGender(citizenID) == Citizen.Gender.Female) &&
+                (Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult) &&
+                ((data.m_flags & Citizen.Flags.MovingIn) == Citizen.Flags.None);
 
             // Don't execute base method after this.
             return false;
@@ -93,8 +83,8 @@ namespace LifecycleRebalance
                     // Education management.
                     if (newAge > ModSettings.YoungStartAge)
                     {
-                        // Students older than teenagers graduate every 15 age units.
-                        if ((newAge - ModSettings.YoungStartAge) % 15 == 0)
+                        // Students older than teenagers graduate after UniYears
+                        if ((newAge - ModSettings.YoungStartAge) > ModSettings.UniNumYears)
                         {
                             FinishSchoolOrWorkRev(__instance, citizenID, ref data);
                         }
@@ -303,6 +293,7 @@ namespace LifecycleRebalance
                         data.m_flags &= ~Citizen.Flags.NeedGoods;
 
                         // Don't execute original method (thus avoiding assigning to a school).
+                        //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, age={age}, young child");
                         return false;
                     }
 
@@ -325,14 +316,27 @@ namespace LifecycleRebalance
 
                 case Citizen.AgeGroup.Young:
                 case Citizen.AgeGroup.Adult:
-                    // Try for university, if they've finished elementary and high school - delaying two age units to look for work instead if the 'School's out' policy is set.
-                    if (data.Education1 & data.Education2 & !data.Education3)
+                    if (data.Education1 && data.Education2 && !data.Education3)
                     {
-                        educationReason = TransferManager.TransferReason.Student3;
+                        // Try for university, if they've finished elementary and high school - delaying two age units to look for work instead if the 'School's out' policy is set.
+                        // Infixo: this sends everyone to school!
+                        int uniChance = 50;
+                        if (Citizen.GetAgeGroup(age) == Citizen.AgeGroup.Adult)
+                            uniChance = 25;
+                        if ((servicePolicies & DistrictPolicies.Services.EducationBoost) != 0)
+                            uniChance += 25;
+                        if ((servicePolicies & DistrictPolicies.Services.SchoolsOut) != 0)
+                            uniChance -= 25;
+                        bool tryForUni = Singleton<SimulationManager>.instance.m_randomizer.Int32(100) < uniChance;
+
+                        //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, uni channce={uniChance}, {tryForUni}");
+                        if (tryForUni)
+                            educationReason = TransferManager.TransferReason.Student3;
                     }
 
                     break;
             }
+            //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, age={age} ({Citizen.GetAgeGroup(age)}), education={educationReason}");
 
             // If citizen is unemployed (young adults and adults only), and either:
             // The citizen isn't eligible for university;
@@ -340,9 +344,8 @@ namespace LifecycleRebalance
             // Or the citizen's age above young adulthood modulo five is 3 or 4 (meaning they've already been looking for work for at least three age units)
             // ...then they look for work (this can be parallel to still seeking education).
             if (data.Unemployed != 0 &&
-                (educationReason != TransferManager.TransferReason.Student3 ||
-                (servicePolicies & DistrictPolicies.Services.EducationBoost) == 0 ||
-                (age - ModSettings.YoungStartAge) % 5 > 2))
+                age >= ModSettings.YoungStartAge && // so children won't go to work (it happens!)
+                educationReason != TransferManager.TransferReason.Student3)
             {
                 TransferManager.TransferOffer jobSeeking = default;
                 jobSeeking.Priority = Singleton<SimulationManager>.instance.m_randomizer.Int32(8u);
@@ -353,7 +356,7 @@ namespace LifecycleRebalance
                 switch (data.EducationLevel)
                 {
                     case Citizen.Education.Uneducated:
-                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker0, jobSeeking);
+                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker0, jobSeeking); // there won't be any in this model after some time
                         break;
                     case Citizen.Education.OneSchool:
                         Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker1, jobSeeking);
@@ -368,18 +371,19 @@ namespace LifecycleRebalance
             }
 
             // Handle education reason.
-            switch (educationReason)
+            //switch (educationReason)
+            if (educationReason != TransferManager.TransferReason.None)
             {
-                case TransferManager.TransferReason.Student3:
+                /*case TransferManager.TransferReason.Student3:
                     // If school's out policy is active, citizens won't look for education for the first two age units after becoming young adults.
-                    if ((servicePolicies & DistrictPolicies.Services.SchoolsOut) != 0 && (age - ModSettings.YoungStartAge) % 5 <= 1)
+                    if ((servicePolicies & DistrictPolicies.Services.SchoolsOut) != 0 && (age - ModSettings.YoungStartAge) <= 1)
                     {
                         break;
                     }
 
                     goto default;
 
-                default:
+                default:*/
                     // Look for education (this can be parallel with looking for work, above).
                     TransferManager.TransferOffer educationSeeking = default;
                     educationSeeking.Priority = Singleton<SimulationManager>.instance.m_randomizer.Int32(8u);
@@ -388,10 +392,11 @@ namespace LifecycleRebalance
                     educationSeeking.Amount = 1;
                     educationSeeking.Active = true;
                     Singleton<TransferManager>.instance.AddOutgoingOffer(educationReason, educationSeeking);
-                    break;
+                //break;
 
-                case TransferManager.TransferReason.None:
-                    break;
+                //case TransferManager.TransferReason.None:
+                //break;
+                //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, looking for education");
             }
 
             // If we got here, we need to continue on to the original method (this is not a young child).

@@ -38,37 +38,50 @@ namespace LifecycleRebalance
         /// <summary>
         /// Maximum supported age at which children can start school.
         /// </summary>
-        internal const int MaxSchoolStartYear = 8;
+        internal const int MaxSchoolStartYear = 10;
 
         /// <summary>
         /// Minimum supported age at which children become teens.
         /// </summary>
-        internal const int MinTeenStartYear = 10;
+        internal const int MinTeenStartYear = 5;
 
         /// <summary>
         /// Maximum supported age at which children become teens.
         /// </summary>
-        internal const int MaxTeenStartYear = 14;
+        internal const int MaxTeenStartYear = 20;
 
         /// <summary>
         /// Minimum supported age at which teens become young adults.
         /// </summary>
-        internal const int MinYoungStartYear = 16;
+        internal const int MinYoungStartYear = 10;
 
         /// <summary>
         /// Maximum supported age at which teens become young adults.
         /// </summary>
-        internal const int MaxYoungStartYear = 20;
+        internal const int MaxYoungStartYear = 25;
+
+
+        /// <summary>
+        /// Minimum supported number of years at university.
+        /// </summary>
+        internal const int MinUniYears = 1;
+		
+        /// <summary>
+        /// Maximum supported number of years at university.
+        /// </summary>
+        internal const int MaxUniYears = 10;
 
         /// <summary>
         /// Minimum supported retirement age.
         /// </summary>
-        internal const int MinRetirementYear = 50;
+        internal const int MinRetirementYear = 40;
 
         /// <summary>
         /// Maximum supported retirement age.
         /// </summary>
-        internal const int MaxRetirementYear = 70;
+        internal const int MaxRetirementYear = 80;
+
+
 
         // Age constants - vanilla values (in age units).
         private const int VanillaSchoolAge = 0;
@@ -84,6 +97,7 @@ namespace LifecycleRebalance
         private const int DefaultSchoolAge = 21;
         private const int DefaultTeenAge = 38;
         private const int DefaultYoungAge = 63;
+        private const int DefaultUniYears = 14;
 
         // Default retirement age (in years, not age units!).
         private const int DefaultRetirementYear = 65;
@@ -104,6 +118,9 @@ namespace LifecycleRebalance
         // Mode.
         [XmlIgnore]
         private static bool s_customChildhood = true;
+		
+        [XmlIgnore]
+        private static int s_uniYears = DefaultUniYears;
 
         // Internal flags.
         private bool _vanillaCalcs = false;
@@ -278,6 +295,18 @@ namespace LifecycleRebalance
         }
 
         /// <summary>
+        /// Gets or sets numbers of years spent in university.
+        /// </summary>
+        [XmlElement("UniYears")]
+        public int UniYears
+        {
+            get => Mathf.RoundToInt(s_uniYears / AgePerYear);
+
+            // Clamp age before assigning.
+            set => s_uniYears = (int)(Mathf.Clamp(value, MinUniYears, MaxUniYears) * AgePerYear);
+        }
+
+        /// <summary>
         /// Gets or sets a value indicating whether detailed death logging is enabled.
         /// </summary>
         [XmlElement("LogDeaths")]
@@ -315,6 +344,11 @@ namespace LifecycleRebalance
         /// Gets the age at which teenagers become young adults (and start college/university) according to current settings.
         /// </summary>
         internal static int YoungStartAge => s_customChildhood ? s_youngStartAge : VanillaYoungAge;
+
+        /// <summary>
+        /// Gets the number of years spent at the university according to current settings.
+        /// </summary>
+        internal static int UniNumYears => s_customChildhood ? s_uniYears : DefaultUniYears;
 
         /// <summary>
         /// Gets or sets the retirement age.

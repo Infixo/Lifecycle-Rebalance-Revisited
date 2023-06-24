@@ -20,7 +20,7 @@ namespace LifecycleRebalance
         /// <summary>
         /// Gets the mod's base display name (name only).
         /// </summary>
-        public override string BaseName => "Lifecycle Rebalance Revisited";
+        public override string BaseName => "Lifecycle Rebalance Revisited (Infixo)";
 
         /// <summary>
         /// Gets the mod's unique Harmony identfier.
