@@ -293,7 +293,6 @@ namespace LifecycleRebalance
                         data.m_flags &= ~Citizen.Flags.NeedGoods;
 
                         // Don't execute original method (thus avoiding assigning to a school).
-                        //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, age={age}, young child");
                         return false;
                     }
 
@@ -329,14 +328,13 @@ namespace LifecycleRebalance
                             uniChance -= 25;
                         bool tryForUni = Singleton<SimulationManager>.instance.m_randomizer.Int32(100) < uniChance;
 
-                        //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, uni channce={uniChance}, {tryForUni}");
+                        Logging.Message("Citizen trying for university", $"CitizenID={citizenID}, uni channce={uniChance}, {tryForUni}");
                         if (tryForUni)
                             educationReason = TransferManager.TransferReason.Student3;
                     }
 
                     break;
             }
-            //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, age={age} ({Citizen.GetAgeGroup(age)}), education={educationReason}");
 
             // If citizen is unemployed (young adults and adults only), and either:
             // The citizen isn't eligible for university;
@@ -345,7 +343,7 @@ namespace LifecycleRebalance
             // ...then they look for work (this can be parallel to still seeking education).
             if (data.Unemployed != 0 &&
                 age >= ModSettings.YoungStartAge && // so children won't go to work (it happens!)
-                educationReason != TransferManager.TransferReason.Student3)
+                educationReason == TransferManager.TransferReason.None) // going to high-school also prevents from working
             {
                 TransferManager.TransferOffer jobSeeking = default;
                 jobSeeking.Priority = Singleton<SimulationManager>.instance.m_randomizer.Int32(8u);
@@ -356,7 +354,7 @@ namespace LifecycleRebalance
                 switch (data.EducationLevel)
                 {
                     case Citizen.Education.Uneducated:
-                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker0, jobSeeking); // there won't be any in this model after some time
+                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker0, jobSeeking);
                         break;
                     case Citizen.Education.OneSchool:
                         Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker1, jobSeeking);
@@ -396,7 +394,7 @@ namespace LifecycleRebalance
 
                 //case TransferManager.TransferReason.None:
                 //break;
-                //Logging.WriteToLog(Logging.ImmigrationLogName, $"CitizenID={citizenID}, looking for education");
+                Logging.Message($"CitizenID={citizenID}, looking for education");
             }
 
             // If we got here, we need to continue on to the original method (this is not a young child).

@@ -135,7 +135,7 @@ namespace LifecycleRebalance
                     ModSettings.Settings.YoungStartYear = (int)value;
                 };
 
-                _uniYearsSlider = AgeSlider("University Years", ModSettings.MinUniYears, ModSettings.MaxUniYears, ModSettings.Settings.UniYears);
+                _uniYearsSlider = AgeSlider("LBR_CHI_UNI", ModSettings.MinUniYears, ModSettings.MaxUniYears, ModSettings.Settings.UniYears);
                 _uniYearsSlider.eventValueChanged += (control, value) =>
                 {
                     // Update mod settings.
