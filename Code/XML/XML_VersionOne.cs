@@ -1,4 +1,4 @@
-﻿// <copyright file="XML_VersionTwo.cs" company="algernon (K. Algernon A. Sheppard)">
+// <copyright file="XML_VersionOne.cs" company="algernon (K. Algernon A. Sheppard)">
 // Copyright (c) algernon (K. Algernon A. Sheppard) and Whitefang Greytail. All rights reserved.
 // Licensed under the Apache license. See LICENSE.txt file in the project root for full license information.
 // </copyright>
@@ -13,7 +13,7 @@ namespace LifecycleRebalance
     using System.Xml;
     using AlgernonCommons;
 
-    public class XML_VersionTwo : WG_XMLBaseVersion
+    public class XML_VersionOne : WG_XMLBaseVersion
     {
         private const string travelNodeName = "travel";
 
@@ -22,8 +22,6 @@ namespace LifecycleRebalance
         private const string lifeSpanNodeName = "lifespan";
         private const string survivalNodeName = "survival";
         private const string sicknessNodeName = "sickness";
-        private const string sickDieNodeName = "sickDeathRate";
-        private const string cheatHearseNodeName = "cheatHearse";
 
         public override void ReadXML(XmlDocument doc)
         {
@@ -87,7 +85,7 @@ namespace LifecycleRebalance
                 }
                 else
                 {
-                    Logging.Error("Unknown immigration node");
+                    Logging.Message("Unknown immigration node");
                 }
 
                 try
@@ -130,14 +128,6 @@ namespace LifecycleRebalance
                 {
                     ReadSicknessNode(node);
                 }
-                else if (node.Name.Equals(sickDieNodeName))
-                {
-                    ReadHospitalNode(node);
-                }
-                else if (node.Name.Equals(cheatHearseNodeName))
-                {
-                    ReadCheatHearseNode(node);
-                }
             }
         }
 
@@ -145,19 +135,16 @@ namespace LifecycleRebalance
         {
             foreach (XmlNode node in root.ChildNodes)
             {
-                string[] attr = node.Name.Split(new char[] { '_' });
-                string name = attr[0];
-                int level = Convert.ToInt32(attr[1]) - 1;
-
-                if (name.Equals("decile"))
+                if (node.Name.Equals("decile"))
                 {
                     try
                     {
-                        DataStore.SurvivalProbInXML[level] = Convert.ToDouble(node.Attributes["survival"].InnerText) / 100.0;
+                        int index = Convert.ToInt32(node.Attributes["num"].InnerText) - 1;
+                        DataStore.SurvivalProbInXML[index] = Convert.ToDouble(node.Attributes["survival"].InnerText) / 100.0;
                     }
                     catch (Exception e)
                     {
-                        Logging.LogException(e, "readSurvivalNode exception");
+                        Logging.LogException(e, "exception deserializing SurvivalNode");
                     }
                 }
             }
@@ -167,61 +154,18 @@ namespace LifecycleRebalance
         {
             foreach (XmlNode node in root.ChildNodes)
             {
-                string[] attr = node.Name.Split(new char[] { '_' });
-                string name = attr[0];
-                int level = Convert.ToInt32(attr[1]) - 1;
-
-                if (name.Equals("decile"))
+                if (node.Name.Equals("decile"))
                 {
                     try
                     {
-                        DataStore.SicknessProbInXML[level] = Convert.ToDouble(node.Attributes["chance"].InnerText) / 100.0;
+                        int index = Convert.ToInt32(node.Attributes["num"].InnerText) - 1;
+                        DataStore.SicknessProbInXML[index] = Convert.ToDouble(node.Attributes["chance"].InnerText) / 100.0;
                     }
                     catch (Exception e)
                     {
-                        Logging.LogException(e, "readSicknessNode exception");
+                        Logging.LogException(e, "exception deserializing SicknessNode");
                     }
                 }
-            }
-        }
-
-        public void ReadHospitalNode(XmlNode root)
-        {
-            foreach (XmlNode node in root.ChildNodes)
-            {
-                string[] attr = node.Name.Split(new char[] { '_' });
-                string name = attr[0];
-                int level = Convert.ToInt32(attr[1]) - 1;
-
-                if (name.Equals("decile"))
-                {
-                    try
-                    {
-                        DataStore.SickDeathChance[level] = Convert.ToDouble(node.Attributes["chance"].InnerText) / 100.0;
-                    }
-                    catch (Exception e)
-                    {
-                        Logging.LogException(e, "readHospitalNode exception");
-                    }
-                }
-            }
-        }
-
-        public void ReadCheatHearseNode(XmlNode root)
-        {
-            try
-            {
-                DataStore.AutoDeadRemovalChance = (int)Convert.ToDouble(root.Attributes["chance"].InnerText);
-                if ((DataStore.AutoDeadRemovalChance < 0) && (DataStore.AutoDeadRemovalChance > 100))
-                {
-                    Logging.Error("Cheat hearse is out of range (0-100). Setting to 50");
-                    DataStore.AutoDeadRemovalChance = 50;
-                }
-            }
-            catch (Exception e)
-            {
-                Logging.LogException(e, "readCheatHearseNode exception");
-                DataStore.AutoDeadRemovalChance = 50;
             }
         }
 
@@ -231,7 +175,7 @@ namespace LifecycleRebalance
 
             XmlNode rootNode = xmlDoc.CreateElement("WG_CitizenEdit");
             XmlAttribute attribute = xmlDoc.CreateAttribute("version");
-            attribute.Value = "2";
+            attribute.Value = "1";
             rootNode.Attributes.Append(attribute);
             xmlDoc.AppendChild(rootNode);
 
@@ -241,7 +185,6 @@ namespace LifecycleRebalance
             comment = xmlDoc.CreateComment("Numbers lower than young adult may cause economic havoc.");
             rootNode.AppendChild(comment);
             rootNode.AppendChild(MakeImmigrateNode(xmlDoc));
-
             rootNode.AppendChild(MakeLifeNode(xmlDoc));
 
             if (File.Exists(fullPathFileName))
@@ -278,7 +221,7 @@ namespace LifecycleRebalance
         {
             string densityElementName = (density == 0) ? "low_density" : "high_density";
             XmlNode node = xmlDoc.CreateElement(densityElementName);
-            string[] type = { "low_wealth", "med_wealth", "high_wealth", "low_wealth_eco", "med_wealth_eco", "high_wealth_eco" };
+            string[] type = { "low_wealth", "med_wealth", "high_wealth" };
 
             for (int i = 0; i < type.Length; i++)
             {
@@ -291,15 +234,6 @@ namespace LifecycleRebalance
                         break;
                     case 2:
                         array = DataStore.TransportHighWealth[density];
-                        break;
-                    case 3:
-                        array = DataStore.TranportLowWealthEco[density];
-                        break;
-                    case 4:
-                        array = DataStore.TransportMedWealthEco[density];
-                        break;
-                    case 5:
-                        array = DataStore.TransportHighWealthEco[density];
                         break;
                     case 0:
                     default:
@@ -377,25 +311,11 @@ namespace LifecycleRebalance
             XmlAttribute attribute = xmlDoc.CreateAttribute("modifier");
             attribute.Value = Convert.ToString(DataStore.LifeSpanMultiplier);
             node.Attributes.Append(attribute);
-            attribute = xmlDoc.CreateAttribute("workspeed");
-            attribute.Value = Convert.ToString(DataStore.WorkSpeedMultiplier);
-            node.Attributes.Append(attribute);
 
-            XmlComment comment = xmlDoc.CreateComment("Percentage of people who survive to the next 10% of their life");
-            node.AppendChild(comment);
+            xmlDoc.CreateComment("Percentage of people who survive to the next 10% of their life");
             node.AppendChild(MakeSurvivalNode(xmlDoc));
-
-            comment = xmlDoc.CreateComment("Percentage of people who become sick over the next 10% of their life");
-            node.AppendChild(comment);
+            xmlDoc.CreateComment("Percentage of people who become sick over the next 10% of their life");
             node.AppendChild(MakeSicknessNode(xmlDoc));
-            /*
-            comment = xmlDoc.CreateComment("Percentage of people who die while sick");
-            node.AppendChild(comment);
-            node.AppendChild(makeSickDeathNode(xmlDoc));
-            */
-            comment = xmlDoc.CreateComment("Percentage of dead who will instantly disappear");
-            node.AppendChild(comment);
-            node.AppendChild(MakeCheatHearseNode(xmlDoc));
 
             return node;
         }
@@ -407,9 +327,12 @@ namespace LifecycleRebalance
             // 0 to 9, 10 deciles.
             for (int i = 0; i < 10; ++i)
             {
-                XmlNode node = xmlDoc.CreateElement("decile_" + (i + 1));
+                XmlNode node = xmlDoc.CreateElement("decile");
+                XmlAttribute attribute = xmlDoc.CreateAttribute("num");
+                attribute.Value = Convert.ToString(i + 1);
+                node.Attributes.Append(attribute);
 
-                XmlAttribute attribute = xmlDoc.CreateAttribute("survival");
+                attribute = xmlDoc.CreateAttribute("survival");
                 attribute.Value = Convert.ToString(DataStore.SurvivalProbInXML[i] * 100.0);
                 node.Attributes.Append(attribute);
 
@@ -426,9 +349,12 @@ namespace LifecycleRebalance
             // 0 to 9, 10 deciles.
             for (int i = 0; i < 10; ++i)
             {
-                XmlNode node = xmlDoc.CreateElement("decile_" + (i + 1));
+                XmlNode node = xmlDoc.CreateElement("decile");
+                XmlAttribute attribute = xmlDoc.CreateAttribute("num");
+                attribute.Value = Convert.ToString(i + 1);
+                node.Attributes.Append(attribute);
 
-                XmlAttribute attribute = xmlDoc.CreateAttribute("chance");
+                attribute = xmlDoc.CreateAttribute("chance");
                 attribute.Value = Convert.ToString(DataStore.SicknessProbInXML[i] * 100.0);
                 node.Attributes.Append(attribute);
 
@@ -436,17 +362,6 @@ namespace LifecycleRebalance
             }
 
             return sickNode;
-        }
-
-        private XmlNode MakeCheatHearseNode(XmlDocument xmlDoc)
-        {
-            XmlNode cheatHearseNode = xmlDoc.CreateElement(cheatHearseNodeName);
-
-            XmlAttribute attribute = xmlDoc.CreateAttribute("chance");
-            attribute.Value = Convert.ToString(DataStore.AutoDeadRemovalChance);
-            cheatHearseNode.Attributes.Append(attribute);
-
-            return cheatHearseNode;
         }
 
         private void ReadTravelWealthNode(XmlNode wealthNode, int density)
@@ -467,17 +382,8 @@ namespace LifecycleRebalance
                     case "high_wealth":
                         array = DataStore.TransportHighWealth;
                         break;
-                    case "low_wealth_eco":
-                        array = DataStore.TranportLowWealthEco;
-                        break;
-                    case "med_wealth_eco":
-                        array = DataStore.TransportMedWealthEco;
-                        break;
-                    case "high_wealth_eco":
-                        array = DataStore.TransportHighWealthEco;
-                        break;
                     default:
-                        Logging.Error("readWealthNode. unknown element name: ", name);
+                        Logging.Error("readWealthNode. unknown element name: " + name);
                         return;
                 }
 
@@ -523,7 +429,7 @@ namespace LifecycleRebalance
                 }
                 catch (Exception e)
                 {
-                    Logging.LogException(e, "readTravelAgeNode exception");
+                    Logging.LogException(e, "readAgeNode exception");
                 }
             } // end foreach
         }

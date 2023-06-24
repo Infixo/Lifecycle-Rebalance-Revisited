@@ -1,77 +1,81 @@
-﻿using ICities;
-using ColossalFramework.UI;
-using CitiesHarmony.API;
-
+﻿// <copyright file="Mod.cs" company="algernon (K. Algernon A. Sheppard)">
+// Copyright (c) algernon (K. Algernon A. Sheppard). All rights reserved.
+// Licensed under the Apache license. See LICENSE.txt file in the project root for full license information.
+// </copyright>
 
 namespace LifecycleRebalance
 {
+    using AlgernonCommons;
+    using AlgernonCommons.Notifications;
+    using AlgernonCommons.Patching;
+    using AlgernonCommons.Translation;
+    using ColossalFramework.Plugins;
+    using ICities;
+
     /// <summary>
     /// The base mod class for instantiation by the game.
     /// </summary>
-    public class LifecycleRebalanceMod : IUserMod
+    public sealed class Mod : PatcherMod<OptionsPanel, Patcher>, IUserMod
     {
-        // Public mod name and description.
-        public string Name => ModName + " " + Version;
+        /// <summary>
+        /// Gets the mod's base display name (name only).
+        /// </summary>
+        public override string BaseName => "Lifecycle Rebalance Revisited";
+
+        /// <summary>
+        /// Gets the mod's unique Harmony identfier.
+        /// </summary>
+        public override string HarmonyID => "com.github.algernon-A.csl.lifecyclerebalancerevisited";
+
+        /// <summary>
+        /// Gets the mod's description for display in the content manager.
+        /// </summary>
         public string Description => Translations.Translate("LBR_DESC");
 
-
-        // Internal and private name and version components.
-        internal static string ModName => "Lifecycle Rebalance Revisited";
-        internal static string Version => BaseVersion + " " + Beta;
-        internal static string Beta => "";
-        internal static int BetaVersion => 0;
-        private static string BaseVersion => "1.6.4";
-
-
+        /// <summary>
+        /// Gets the mod's what's new message array.
+        /// </summary>
+        public override WhatsNewMessage[] WhatsNewMessages => new WhatsNewMessageListing().Messages;
 
         /// <summary>
         /// Called by the game when the mod is enabled.
         /// </summary>
-        public void OnEnabled()
+        public override void OnEnabled()
         {
-            // Apply Harmony patches via Cities Harmony.
-            // Called here instead of OnCreated to allow the auto-downloader to do its work prior to launch.
-            HarmonyHelper.DoOnHarmonyReady(() => Patcher.PatchAll());
-
-            // Check to see if UIView is ready (to attach the options panel event handler).
-            if (UIView.GetAView() != null)
+            // Perform conflict detection.
+            ConflictDetection conflictDetection = new ConflictDetection();
+            if (conflictDetection.CheckModConflicts())
             {
-                // It's ready - attach options panel event handler now.
-                OptionsPanel.OptionsEventHook();
-            }
-            else
-            {
-                // Otherwise, queue the hook for when the intro's finished loading.
-                LoadingManager.instance.m_introLoaded += OptionsPanel.OptionsEventHook;
+                Logging.Error("aborting activation due to conflicting mods");
+
+                // Load mod settings to ensure that correct language is selected for notification display.
+                LoadSettings();
+
+                // Disable mod.
+                if (AssemblyUtils.ThisPlugin is PluginManager.PluginInfo plugin)
+                {
+                    Logging.KeyMessage("disabling mod");
+                    plugin.isEnabled = false;
+                }
+
+                // Don't do anything further.
+                return;
             }
 
-            // Load settings and configuation files.
-            ModSettings.Load();
-            Loading.ReadFromXML();
+            base.OnEnabled();
+
+            // Load configuation file.
+            DataStore.ReadFromXML();
         }
-
 
         /// <summary>
-        /// Called by the game when the mod is disabled.
+        /// Saves settings file.
         /// </summary>
-        public void OnDisabled()
-        {
-            // Unapply Harmony patches via Cities Harmony.
-            if (HarmonyHelper.IsHarmonyInstalled)
-            {
-                Patcher.UnpatchAll();
-            }
-        }
-
+        public override void SaveSettings() => ModSettings.Save();
 
         /// <summary>
-        /// Called by the game when the mod options panel is setup.
+        /// Loads settings file.
         /// </summary>
-        public void OnSettingsUI(UIHelperBase helper)
-        {
-            // Setup options panel reference.
-            OptionsPanel.optionsPanel = ((UIHelper)helper).self as UIScrollablePanel;
-            OptionsPanel.optionsPanel.autoLayout = false;
-        }
+        public override void LoadSettings() => ModSettings.Load();
     }
 }

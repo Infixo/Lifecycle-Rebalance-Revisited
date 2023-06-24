@@ -1,4 +1,39 @@
-﻿Version 1.6.4
+﻿Version 1.6.7
+
+- Compatibility with game version 1.17
+- Update AlgernonCommons
+
+
+Version 1.6.6.1
+
+- Stop residents trying to catch taxis from outside owned tiles (map edge)
+- Update bundled Cities Harmony to 2.2.0
+
+
+Version 1.6.6
+
+- Update orphan detection and removal to not conflict with the Oprhanage Center mod
+- Strengthen orphan detection
+
+
+Version 1.6.5.2 hotfix
+
+- Fix survivial probability table sometimes not being correctly calculated when loaded from v2 XML files
+
+
+Version 1.6.5.1 hotfix
+
+- Rework OutsideConnectionAI patch for greater robustness
+
+
+Version 1.6.5
+
+- Add support for wall-to-wall residential buildings as separate transport mode probability category
+- Mod conflict detection now takes place on enabling the mod (so you don't have to load a city to find out if there's a conflict)
+- Implement AlgernonCommons
+
+
+Version 1.6.4
 
 - Adjust young adult and adult job-seeking behavior to better reflect dynamic high-school exit ages
 - Update bundled Cities Harmony to 2.1.0
