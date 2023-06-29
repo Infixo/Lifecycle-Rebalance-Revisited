@@ -102,11 +102,11 @@ namespace LifecycleRebalance
         // Children - < 11 years = < 38 age units (rounded down from 38.5)
         // Teens - 11-17 years inclusive = < 18 years = < 63 age units
         // Young adults - 18-25 years inclusive = < 91 (but game default is 90 so we just keep that)
-        private const int DefaultSchoolAge = 21; // 6 yo
+        private const int DefaultSchoolAge = 17; // 5 yo
         private const int DefaultTeenAge = 42; // 12 yo
         private const int DefaultYoungAge = 63; // 18 yo
-        private const int DefaultAdultStartAge = 77; // 22 yo, also means that university lasts for 4 years
-        private const int DefaultWorkStartAge = 56; // 16 yo
+        private const int DefaultAdultStartAge = 80; // 23 yo, also means that university lasts for ~5 years
+        private const int DefaultWorkStartAge = 52; // 15 yo
 
         // Default retirement age (in years, not age units!).
         private const int DefaultRetirementYear = 65;
@@ -130,17 +130,17 @@ namespace LifecycleRebalance
 
         // Parameters for calculating life choices (education vs. work)
         [XmlIgnore]
-        private static int s_eduProbTeen = 42;
+        private static int s_eduProbTeen = 40;
         [XmlIgnore]
-        private static int s_eduProbYoung = 16;
+        private static int s_eduProbYoung = 20;
         [XmlIgnore]
         private static int s_eduProbAdult = 5;
         [XmlIgnore]
-        private static int s_unemployedAge = 2;
+        private static int s_unemployedAge = 3;
         [XmlIgnore]
-        private static int s_factorEducationBoost = 120;
+        private static int s_factorEducationBoost = 125;
         [XmlIgnore]
-        private static int s_factorSchoolsOut = 80;
+        private static int s_factorSchoolsOut = 75;
 
 
         // Mode.

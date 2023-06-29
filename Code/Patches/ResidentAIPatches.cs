@@ -35,9 +35,10 @@ namespace LifecycleRebalance
         {
             __result =
                 !data.Dead &&
-                (Citizen.GetGender(citizenID) == Citizen.Gender.Female) &&
-                (Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult) &&
-                ((data.m_flags & Citizen.Flags.MovingIn) == Citizen.Flags.None);
+                Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult &&
+                (data.Age < 180 || Citizen.GetGender(citizenID) == Citizen.Gender.Male) &&  // // Females are now limited to the time that they have aged.
+                citizenID % DataStore.LifeSpanMultiplier == Threading.Counter &&
+                (data.m_flags & Citizen.Flags.MovingIn) == Citizen.Flags.None;
 
             //Logging.Message("CanMakeBabies",
                 //",dead?,", data.Dead,
