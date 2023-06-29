@@ -191,7 +191,7 @@ namespace LifecycleRebalance
                 ModSettings settings = ModSettings.Settings;
 
                 // 24% different education levels.
-                int eduModifier = settings.RandomImmigrantEd ? simulationRandomizer.Int32(-14, 14) / 10 : 0;
+                int eduModifier = settings.RandomImmigrantEd ? simulationRandomizer.Int32(-12, 12) / 10 : 0;
 
                 if (settings.ImmiEduBoost)
                 {

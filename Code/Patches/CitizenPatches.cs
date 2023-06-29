@@ -32,7 +32,7 @@ namespace LifecycleRebalance
             {
                 __result = Citizen.AgeGroup.Teen;
             }
-            else if (age < ModSettings.VanillaAdultAge)
+            else if (age < ModSettings.AdultStartAge)
             {
                 __result = Citizen.AgeGroup.Young;
             }
@@ -68,7 +68,7 @@ namespace LifecycleRebalance
             {
                 __result = (Citizen.AgePhase)((int)Citizen.AgePhase.Teen0 + education);
             }
-            else if (age < ModSettings.VanillaAdultAge)
+            else if (age < ModSettings.AdultStartAge)
             {
                 __result = (Citizen.AgePhase)((int)Citizen.AgePhase.Young0 + education);
             }

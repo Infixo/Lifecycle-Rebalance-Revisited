@@ -23,7 +23,7 @@ namespace LifecycleRebalance
         /// <summary>
         /// Game default age at which citizens become adults.
         /// </summary>
-        internal const int VanillaAdultAge = 90;
+        private const int VanillaAdultAge = 90;
 
         /// <summary>
         /// Game default age units per year, defined by the game in 1.13 in District.GetAverageLifespan().
@@ -60,16 +60,25 @@ namespace LifecycleRebalance
         /// </summary>
         internal const int MaxYoungStartYear = 25;
 
-
         /// <summary>
-        /// Minimum supported number of years at university.
+        /// Minimum supported age at which a citizen may start working.
         /// </summary>
-        internal const int MinUniYears = 1;
+        internal const int MinWorkStartYear = 10;
 		
         /// <summary>
-        /// Maximum supported number of years at university.
+        /// Maximum supported age at which a citizen may start working.
         /// </summary>
-        internal const int MaxUniYears = 10;
+        internal const int MaxWorkStartYear = 20;
+
+        /// <summary>
+        /// Minimum supported age at which young adults become adults.
+        /// </summary>
+        internal const int MinAdultStartYear = 20;
+
+        /// <summary>
+        /// Maximum supported age at which young adults become adults.
+        /// </summary>
+        internal const int MaxAdultStartYear = 30;
 
         /// <summary>
         /// Minimum supported retirement age.
@@ -81,23 +90,23 @@ namespace LifecycleRebalance
         /// </summary>
         internal const int MaxRetirementYear = 80;
 
-
-
         // Age constants - vanilla values (in age units).
         private const int VanillaSchoolAge = 0;
         private const int VanillaTeenAge = 15;
         private const int VanillaYoungAge = 45;
         private const int VanillaRetirementAge = 180;
+        private const int VanillaWorkStartAge = 0; // not explicitely defined in the game, but virtually a citizen at any age can work :(
 
         // Age constants - mod default custom values (in age units).
         // Early child - < 6 years = < 21
         // Children - < 11 years = < 38 age units (rounded down from 38.5)
         // Teens - 11-17 years inclusive = < 18 years = < 63 age units
         // Young adults - 18-25 years inclusive = < 91 (but game default is 90 so we just keep that)
-        private const int DefaultSchoolAge = 21;
-        private const int DefaultTeenAge = 38;
-        private const int DefaultYoungAge = 63;
-        private const int DefaultUniYears = 14;
+        private const int DefaultSchoolAge = 21; // 6 yo
+        private const int DefaultTeenAge = 42; // 12 yo
+        private const int DefaultYoungAge = 63; // 18 yo
+        private const int DefaultAdultStartAge = 77; // 22 yo, also means that university lasts for 4 years
+        private const int DefaultWorkStartAge = 56; // 16 yo
 
         // Default retirement age (in years, not age units!).
         private const int DefaultRetirementYear = 65;
@@ -114,13 +123,29 @@ namespace LifecycleRebalance
         private static int s_teenStartAge = DefaultTeenAge;
         [XmlIgnore]
         private static int s_youngStartAge = DefaultYoungAge;
+        [XmlIgnore]
+        private static int s_adultStartAge = DefaultAdultStartAge;
+        [XmlIgnore]
+        private static int s_workStartAge = DefaultWorkStartAge;
+
+        // Parameters for calculating life choices (education vs. work)
+        [XmlIgnore]
+        private static int s_eduProbTeen = 42;
+        [XmlIgnore]
+        private static int s_eduProbYoung = 16;
+        [XmlIgnore]
+        private static int s_eduProbAdult = 5;
+        [XmlIgnore]
+        private static int s_unemployedAge = 2;
+        [XmlIgnore]
+        private static int s_factorEducationBoost = 120;
+        [XmlIgnore]
+        private static int s_factorSchoolsOut = 80;
+
 
         // Mode.
         [XmlIgnore]
         private static bool s_customChildhood = true;
-		
-        [XmlIgnore]
-        private static int s_uniYears = DefaultUniYears;
 
         // Internal flags.
         private bool _vanillaCalcs = false;
@@ -283,7 +308,7 @@ namespace LifecycleRebalance
         }
 
         /// <summary>
-        /// Gets or sets the age (in years) at which teenagers become young adults (and start university/college).
+        /// Gets or sets the age (in years) at which teenagers become young adults (and start higher education)
         /// </summary>
         [XmlElement("YoungStartYear")]
         public int YoungStartYear
@@ -295,15 +320,87 @@ namespace LifecycleRebalance
         }
 
         /// <summary>
-        /// Gets or sets numbers of years spent in university.
+        /// Gets or sets the age (in years) at which young adults become adults (and finish higher education)
         /// </summary>
-        [XmlElement("UniYears")]
-        public int UniYears
+        [XmlElement("AdultStartYear")]
+        public int AdultStartYear
         {
-            get => Mathf.RoundToInt(s_uniYears / AgePerYear);
+            get => Mathf.RoundToInt(s_adultStartAge / AgePerYear);
 
             // Clamp age before assigning.
-            set => s_uniYears = (int)(Mathf.Clamp(value, MinUniYears, MaxUniYears) * AgePerYear);
+            set => s_adultStartAge = (int)(Mathf.Clamp(value, MinAdultStartYear, MaxAdultStartYear) * AgePerYear);
+        }
+
+        /// <summary>
+        /// Gets or sets the age (in years) at which a citizen may start working
+        /// </summary>
+        [XmlElement("WorkStartYear")]
+        public int WorkStartYear
+        {
+            get => Mathf.RoundToInt(s_workStartAge / AgePerYear);
+
+            // Clamp age before assigning.
+            set => s_workStartAge = (int)(Mathf.Clamp(value, MinWorkStartYear, MaxWorkStartYear) * AgePerYear);
+        }
+
+        /// <summary>
+        /// Gets or sets the probability of a teen choosing the secondary education
+        /// </summary>
+        [XmlElement("EduProbTeen")]
+        public int EduProbTeen
+        {
+            get => s_eduProbTeen; 
+            set => s_eduProbTeen = (int)(value);
+        }
+
+        /// <summary>
+        /// Gets or sets the probability of a young adult choosing the higher education
+        /// </summary>
+        [XmlElement("EduProbYoung")]
+        public int EduProbYoung
+        {
+            get => s_eduProbYoung;
+            set => s_eduProbYoung = (int)(value);
+        }
+
+        /// <summary>
+        /// Gets or sets the probability of an adult choosing the education when unemployed
+        /// </summary>
+        [XmlElement("EduProbAdult")]
+        public int EduProbAdult
+        {
+            get => s_eduProbAdult;
+            set => s_eduProbAdult = (int)(value);
+        }
+
+        /// <summary>
+        /// Gets or sets the number of unemployment age units after which an anultd starts looking for an education
+        /// </summary>
+        [XmlElement("UnemployedAge")]
+        public int UnemployedAge
+        {
+            get => s_unemployedAge;
+            set => s_unemployedAge = (int)(value);
+        }
+
+        /// <summary>
+        /// Gets or sets the factor to boost education probabilities when Education Boost policy is active
+        /// </summary>
+        [XmlElement("FactorEducationBoost")]
+        public int FactorEducationBoost
+        {
+            get => s_factorEducationBoost;
+            set => s_factorEducationBoost = (int)(value);
+        }
+
+        /// <summary>
+        /// Gets or sets the factor to lower education probabilities when School's Out policy is active
+        /// </summary>
+        [XmlElement("FactorSchoolsOut")]
+        public int FactorSchoolsOut
+        {
+            get => s_factorSchoolsOut;
+            set => s_factorSchoolsOut = (int)(value);
         }
 
         /// <summary>
@@ -346,9 +443,14 @@ namespace LifecycleRebalance
         internal static int YoungStartAge => s_customChildhood ? s_youngStartAge : VanillaYoungAge;
 
         /// <summary>
+        /// Gets the age at which teenagers become young adults (and start college/university) according to current settings.
+        /// </summary>
+        internal static int AdultStartAge => s_customChildhood ? s_adultStartAge : VanillaAdultAge;
+
+        /// <summary>
         /// Gets the number of years spent at the university according to current settings.
         /// </summary>
-        internal static int UniNumYears => s_customChildhood ? s_uniYears : DefaultUniYears;
+        internal static int WorkStartAge => s_customChildhood ? s_workStartAge : VanillaWorkStartAge;
 
         /// <summary>
         /// Gets or sets the retirement age.

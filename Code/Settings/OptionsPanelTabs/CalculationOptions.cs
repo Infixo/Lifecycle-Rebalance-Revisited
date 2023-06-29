@@ -33,7 +33,8 @@ namespace LifecycleRebalance
         private UISlider _schoolStartSlider;
         private UISlider _teenStartSlider;
         private UISlider _youngStartSlider;
-        private UISlider _uniYearsSlider;
+        private UISlider _adultStartSlider;
+        private UISlider _workStartSlider;
         private UILabel _shOnlyLabel1;
         private UILabel _shOnlyLabel2;
 
@@ -135,11 +136,18 @@ namespace LifecycleRebalance
                     ModSettings.Settings.YoungStartYear = (int)value;
                 };
 
-                _uniYearsSlider = AgeSlider("LBR_CHI_UNI", ModSettings.MinUniYears, ModSettings.MaxUniYears, ModSettings.Settings.UniYears);
-                _uniYearsSlider.eventValueChanged += (control, value) =>
+                _adultStartSlider = AgeSlider("LBR_CHI_ADU", ModSettings.MinAdultStartYear, ModSettings.MaxAdultStartYear, ModSettings.Settings.AdultStartYear);
+                _adultStartSlider.eventValueChanged += (control, value) =>
                 {
                     // Update mod settings.
-                    ModSettings.Settings.UniYears = (int)value;
+                    ModSettings.Settings.AdultStartYear = (int)value;
+                };
+
+                _workStartSlider = AgeSlider("LBR_CHI_WRK", ModSettings.MinWorkStartYear, ModSettings.MaxWorkStartYear, ModSettings.Settings.WorkStartYear);
+                _workStartSlider.eventValueChanged += (control, value) =>
+                {
+                    // Update mod settings.
+                    ModSettings.Settings.WorkStartYear = (int)value;
                 };
 
                 // Sunset harbor only labels.
@@ -150,6 +158,8 @@ namespace LifecycleRebalance
                 _schoolStartSlider.parent.isVisible = _childCheckBox.isChecked;
                 _teenStartSlider.parent.isVisible = _childCheckBox.isChecked;
                 _youngStartSlider.parent.isVisible = _childCheckBox.isChecked;
+                _adultStartSlider.parent.isVisible = _childCheckBox.isChecked;
+                _workStartSlider.parent.isVisible = _childCheckBox.isChecked;
 
                 // Update our checkbox states visibility status based on current settings.
                 UpdateVisibility(ModSettings.Settings.VanillaCalcs ? 2 : ModSettings.Settings.LegacyCalcs ? 1 : 0);
@@ -215,7 +225,8 @@ namespace LifecycleRebalance
                     _schoolStartSlider.parent.isVisible = isChecked;
                     _teenStartSlider.parent.isVisible = isChecked;
                     _youngStartSlider.parent.isVisible = isChecked;
-                    _uniYearsSlider.parent.isVisible = isChecked;
+                    _adultStartSlider.parent.isVisible = isChecked;
+                    _workStartSlider.parent.isVisible = isChecked;
                 };
             }
         }
@@ -239,7 +250,8 @@ namespace LifecycleRebalance
                 _schoolStartSlider.parent.Hide();
                 _teenStartSlider.parent.Hide();
                 _youngStartSlider.parent.Hide();
-                _uniYearsSlider.parent.Hide();
+                _adultStartSlider.parent.Hide();
+                _workStartSlider.parent.Hide();
 
                 // Show 'Sunset Harbor only' labels.
                 _shOnlyLabel1.Show();
@@ -264,7 +276,8 @@ namespace LifecycleRebalance
                     _schoolStartSlider.parent.Show();
                     _teenStartSlider.parent.Show();
                     _youngStartSlider.parent.Show();
-                    _uniYearsSlider.parent.Show();
+                    _adultStartSlider.parent.Show();
+                    _workStartSlider.parent.Show();
                 }
 
                 // Show 'Sunset Harbor only' labels.
@@ -309,7 +322,7 @@ namespace LifecycleRebalance
         private UISlider AgeSlider(string labelKey, uint min, uint max, int initialValue)
         {
             // Create new slider.
-            UISlider newSlider = UISliders.AddPlainSliderWithValue(Panel, Margin, currentY, Translations.Translate(labelKey), min, max, 1f, initialValue, 700f);
+            UISlider newSlider = UISliders.AddPlainSliderWithIntegerValue(Panel, Margin, currentY, Translations.Translate(labelKey), min, max, 1f, initialValue, 700f);
 
             // Increment y position indicator.
             currentY += newSlider.parent.height - Margin;

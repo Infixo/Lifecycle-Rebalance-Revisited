@@ -11,6 +11,9 @@ namespace LifecycleRebalance
     using ColossalFramework;
     using HarmonyLib;
     using UnityEngine;
+    using static DistrictPolicies;
+    using static InvestmentAI;
+    using static RenderManager;
 
     /// <summary>
     /// Harmony patches for ResidentAI to implement mod functionality.
@@ -35,6 +38,13 @@ namespace LifecycleRebalance
                 (Citizen.GetGender(citizenID) == Citizen.Gender.Female) &&
                 (Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult) &&
                 ((data.m_flags & Citizen.Flags.MovingIn) == Citizen.Flags.None);
+
+            //Logging.Message("CanMakeBabies",
+                //",dead?,", data.Dead,
+                //",female?,", (Citizen.GetGender(citizenID) == Citizen.Gender.Female),
+                //",adult?,", (Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult),
+                //",moving?,", ((data.m_flags & Citizen.Flags.MovingIn) == Citizen.Flags.MovingIn),
+                //$",result={__result}");
 
             // Don't execute base method after this.
             return false;
@@ -73,35 +83,43 @@ namespace LifecycleRebalance
                         FinishSchoolOrWorkRev(__instance, citizenID, ref data);
                     }
                 }
-                else if (newAge == ModSettings.VanillaAdultAge || newAge >= ModSettings.RetirementAge)
+                else if (newAge == ModSettings.AdultStartAge || newAge >= ModSettings.RetirementAge)
                 {
                     // Young adults finish university/college, adults retire.
                     FinishSchoolOrWorkRev(__instance, citizenID, ref data);
                 }
+                // Education management failsafe i.e. evicting those who overstayed for any reason
                 else if ((data.m_flags & Citizen.Flags.Student) != Citizen.Flags.None)
                 {
-                    // Education management.
-                    if (newAge > ModSettings.YoungStartAge)
+                    BuildingInfo info = Singleton<BuildingManager>.instance.m_buildings.m_buffer[data.m_workBuilding].Info;
+                    if (Citizen.GetAgeGroup(data.Age) == Citizen.AgeGroup.Adult)
                     {
-                        // Students older than teenagers graduate after UniYears
-                        if ((newAge - ModSettings.YoungStartAge) > ModSettings.UniNumYears)
+                        // Adults are treated differently because they can go to School at any time
+                        // The game doesn't keep info about WHEN they started the School
+                        // Using just simple  "greater than a specific age" will cause immediate eviction
+                        // This is just a simple solution to make sure they will stay at least several age units in School
+                        int avgSchoolAge = (ModSettings.AdultStartAge - ModSettings.SchoolStartAge) / 3; // three schools
+                        if (newAge % avgSchoolAge == 0)
                         {
+                            Logging.Message("UpdateAge: evicting Adult student ", citizenID, " at age ", newAge);
                             FinishSchoolOrWorkRev(__instance, citizenID, ref data);
                         }
-                        else
-                        {
-                            // Evict high school students who've overstayed.
-                            if (Singleton<BuildingManager>.instance.m_buildings.m_buffer[data.m_workBuilding].Info.m_buildingAI.GetEducationLevel2())
-                            {
-                                Logging.Message("evicting high school student ", citizenID, " at age ", newAge);
-                                FinishSchoolOrWorkRev(__instance, citizenID, ref data);
-                            }
-                        }
                     }
-                    else if (newAge > ModSettings.TeenStartAge && Singleton<BuildingManager>.instance.m_buildings.m_buffer[data.m_workBuilding].Info.m_buildingAI.GetEducationLevel1())
+                    else if (newAge > ModSettings.AdultStartAge && info.m_buildingAI.GetEducationLevel3())
                     {
-                        // Evict elementary school students who've overstayed.
-                        Logging.Message("evicting elementary school student ", citizenID, " at age ", newAge);
+                        Logging.Message("UpdateAge: evicting university student ", citizenID, " at age ", newAge);
+                        FinishSchoolOrWorkRev(__instance, citizenID, ref data);
+                    }
+                    // Evict high school students who've overstayed.
+                    else if (newAge > ModSettings.YoungStartAge && info.m_buildingAI.GetEducationLevel2())
+                    {
+                        Logging.Message("UpdateAge: evicting high school student ", citizenID, " at age ", newAge);
+                        FinishSchoolOrWorkRev(__instance, citizenID, ref data);
+                    }
+                    // Evict elementary school students who've overstayed.
+                    else if (newAge > ModSettings.TeenStartAge && info.m_buildingAI.GetEducationLevel1())
+                    {
+                        Logging.Message("UpdateAge: evicting elementary school student ", citizenID, " at age ", newAge);
                         FinishSchoolOrWorkRev(__instance, citizenID, ref data);
                     }
                 }
@@ -271,17 +289,24 @@ namespace LifecycleRebalance
             DistrictManager districtManager = Singleton<DistrictManager>.instance;
             byte district = districtManager.GetDistrict(position);
             DistrictPolicies.Services servicePolicies = districtManager.m_districts.m_buffer[district].m_servicePolicies;
+            bool isEducationBoostActive = ( (servicePolicies & DistrictPolicies.Services.EducationBoost) != 0 );
+            bool isSchoolsOutActive     = ( (servicePolicies & DistrictPolicies.Services.SchoolsOut)     != 0 );
             int age = data.Age;
+            var randomizer = Singleton<SimulationManager>.instance.m_randomizer;
 
             // Default transfer reason - will be replaced with any valid workplace offers.
             TransferManager.TransferReason educationReason = TransferManager.TransferReason.None;
+            TransferManager.TransferReason workReason      = TransferManager.TransferReason.None;
+            bool isSearchingForSchool = false;
+
+            Logging.Message($"UpdateWorkplace: citizenID={citizenID}, age={age}, group={Citizen.GetAgeGroup(age)}, eduLevel={data.EducationLevel}, unempl={data.Unemployed}");
 
             // Treatment depends on citizen age.
             switch (Citizen.GetAgeGroup(age))
             {
                 case Citizen.AgeGroup.Child:
                     // Is this a young child?
-                    if (data.m_age < ModSettings.SchoolStartAge)
+                    if (age < ModSettings.SchoolStartAge)
                     {
                         // Young children should never be educated.
                         // Sometimes the UpdateWellbeing method (called immediately before UpdateWorkplace in SimulationStep) will give these kids education, so we just clear it here.
@@ -300,50 +325,106 @@ namespace LifecycleRebalance
                     if (!data.Education1)
                     {
                         educationReason = TransferManager.TransferReason.Student1;
+                        Logging.Message($"...Child, reason {educationReason}");
                     }
 
                     break;
 
                 case Citizen.AgeGroup.Teen:
-                    if (data.Education1 && !data.Education2)
+                    // Try to go to HighSchool when TeenStartAge
+                    isSearchingForSchool = (age - ModSettings.TeenStartAge < 3);
+                    if (data.Education1 && !data.Education2 && isSearchingForSchool)
                     {
-                        // Teens go to high school, if they've finished elementary school.
-                        educationReason = TransferManager.TransferReason.Student2;
+                        // Teens try 3 times go to high school, if they've finished elementary school.
+                        int educationProb = ModSettings.Settings.EduProbTeen;
+                        if (isEducationBoostActive)
+                            educationProb = educationProb * ModSettings.Settings.FactorEducationBoost / 100;
+                        if (isSchoolsOutActive)
+                            educationProb = educationProb * ModSettings.Settings.FactorSchoolsOut / 100;
+                        int chance = randomizer.Int32(100);
+                        if (chance < educationProb)
+                            educationReason = TransferManager.TransferReason.Student2;
+                        Logging.Message("...Teen, eduProb ", educationProb, " cycle ", age - ModSettings.TeenStartAge, " chance ", chance, " reason  ", educationReason);
+                    }
+
+                    // When reaches WorkStartAge, tried 3x and still not in school => go to work
+                    if (educationReason == TransferManager.TransferReason.None && age >= ModSettings.WorkStartAge && !isSearchingForSchool)
+                    {
+                        workReason = TransferManager.TransferReason.Worker1;
                     }
 
                     break;
 
                 case Citizen.AgeGroup.Young:
-                case Citizen.AgeGroup.Adult:
-                    if (data.Education1 && data.Education2 && !data.Education3)
+                    // Try to go to University when YoungStartAge
+                    isSearchingForSchool = (age - ModSettings.YoungStartAge < 3);
+                    if (data.Education1 && data.Education2 && !data.Education3 && isSearchingForSchool)
                     {
-                        // Try for university, if they've finished elementary and high school - delaying two age units to look for work instead if the 'School's out' policy is set.
-                        // Infixo: this sends everyone to school!
-                        int uniChance = 50;
-                        if (Citizen.GetAgeGroup(age) == Citizen.AgeGroup.Adult)
-                            uniChance = 25;
-                        if ((servicePolicies & DistrictPolicies.Services.EducationBoost) != 0)
-                            uniChance += 25;
-                        if ((servicePolicies & DistrictPolicies.Services.SchoolsOut) != 0)
-                            uniChance -= 25;
-                        bool tryForUni = Singleton<SimulationManager>.instance.m_randomizer.Int32(100) < uniChance;
-
-                        Logging.Message("Citizen trying for university", $"CitizenID={citizenID}, uni channce={uniChance}, {tryForUni}");
-                        if (tryForUni)
+                        // Young Adults try 3 times go to university, if they've secondary education
+                        int educationProb = ModSettings.Settings.EduProbYoung;
+                        if (isEducationBoostActive)
+                            educationProb = educationProb * ModSettings.Settings.FactorEducationBoost / 100;
+                        if (isSchoolsOutActive)
+                            educationProb = educationProb * ModSettings.Settings.FactorSchoolsOut / 100;
+                        int chance = randomizer.Int32(100);
+                        if (chance < educationProb)
                             educationReason = TransferManager.TransferReason.Student3;
+                        Logging.Message("...Young, eduProb ", educationProb, " cycle ", age - ModSettings.YoungStartAge, " chance ", chance, " reason  ", educationReason);
+                    }
+
+                    // When reaches WorkStartAge, tried 3x and still not in school => go to work
+                    if (educationReason == TransferManager.TransferReason.None && age >= ModSettings.WorkStartAge && !isSearchingForSchool)
+                    {
+                        workReason = TransferManager.TransferReason.Worker2;
+                    }
+
+                    break;
+
+                case Citizen.AgeGroup.Adult:
+                    // Adults should primarly go for work that correlates with their education
+                    TransferManager.TransferReason adultReason = TransferManager.TransferReason.None; // helper to avoid 2 switches
+                    switch (data.EducationLevel)
+                    {
+                        case Citizen.Education.Uneducated:
+                            workReason = TransferManager.TransferReason.Worker0;
+                            adultReason = TransferManager.TransferReason.Student1;
+                            break;
+                        case Citizen.Education.OneSchool:
+                            workReason = TransferManager.TransferReason.Worker1;
+                            adultReason = TransferManager.TransferReason.Student2;
+                            break;
+                        case Citizen.Education.TwoSchools:
+                            workReason = TransferManager.TransferReason.Worker2;
+                            adultReason = TransferManager.TransferReason.Student3;
+                            break;
+                        case Citizen.Education.ThreeSchools:
+                            workReason = TransferManager.TransferReason.Worker3;
+                            break;
+                    }
+
+                    // However, when Unemployed for more than a treshold, they will try to raise an education level with some residual chance
+                    if (data.Unemployed > ModSettings.Settings.UnemployedAge && data.EducationLevel != Citizen.Education.ThreeSchools)
+                    {
+                        int educationProb = ModSettings.Settings.EduProbAdult; // per missing edu level
+                        if (!data.Education1)
+                            educationProb *= 4;
+                        else if (!data.Education2)
+                            educationProb *= 2;
+                        // policies don't affect Adults because their motivation is internal (Unemployment) not external (governance)
+                        int chance = randomizer.Int32(100);
+                        if (chance < educationProb)
+                            educationReason = adultReason;
+                        Logging.Message("...Adult, eduProb ", educationProb, " unemployed ", data.Unemployed, " chance ", chance, " reason ", educationReason);
                     }
 
                     break;
             }
 
-            // If citizen is unemployed (young adults and adults only), and either:
-            // The citizen isn't eligible for university;
-            // 'Education boost' is not on, or if it's on, the citizen's age above young adulthood modulo five is 3 or 4 (meaning they've already been looking for work for at least three age units);
-            // Or the citizen's age above young adulthood modulo five is 3 or 4 (meaning they've already been looking for work for at least three age units)
-            // ...then they look for work (this can be parallel to still seeking education).
-            if (data.Unemployed != 0 &&
-                age >= ModSettings.YoungStartAge && // so children won't go to work (it happens!)
-                educationReason == TransferManager.TransferReason.None) // going to high-school also prevents from working
+            // Look for work
+            if (workReason != TransferManager.TransferReason.None &&
+                //data.Unemployed != 0 &&
+                age >= ModSettings.WorkStartAge && // failsafe so children won't go to work (it happens!)
+                educationReason == TransferManager.TransferReason.None) // going 
             {
                 TransferManager.TransferOffer jobSeeking = default;
                 jobSeeking.Priority = Singleton<SimulationManager>.instance.m_randomizer.Int32(8u);
@@ -351,50 +432,22 @@ namespace LifecycleRebalance
                 jobSeeking.Position = position;
                 jobSeeking.Amount = 1;
                 jobSeeking.Active = true;
-                switch (data.EducationLevel)
-                {
-                    case Citizen.Education.Uneducated:
-                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker0, jobSeeking);
-                        break;
-                    case Citizen.Education.OneSchool:
-                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker1, jobSeeking);
-                        break;
-                    case Citizen.Education.TwoSchools:
-                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker2, jobSeeking);
-                        break;
-                    case Citizen.Education.ThreeSchools:
-                        Singleton<TransferManager>.instance.AddOutgoingOffer(TransferManager.TransferReason.Worker3, jobSeeking);
-                        break;
-                }
+                Singleton<TransferManager>.instance.AddOutgoingOffer(workReason, jobSeeking);
+                Logging.Message($"...looking for JOB, reason={workReason}");
             }
 
-            // Handle education reason.
-            //switch (educationReason)
+            // Look for school
             if (educationReason != TransferManager.TransferReason.None)
             {
-                /*case TransferManager.TransferReason.Student3:
-                    // If school's out policy is active, citizens won't look for education for the first two age units after becoming young adults.
-                    if ((servicePolicies & DistrictPolicies.Services.SchoolsOut) != 0 && (age - ModSettings.YoungStartAge) <= 1)
-                    {
-                        break;
-                    }
-
-                    goto default;
-
-                default:*/
-                    // Look for education (this can be parallel with looking for work, above).
-                    TransferManager.TransferOffer educationSeeking = default;
-                    educationSeeking.Priority = Singleton<SimulationManager>.instance.m_randomizer.Int32(8u);
-                    educationSeeking.Citizen = citizenID;
-                    educationSeeking.Position = position;
-                    educationSeeking.Amount = 1;
-                    educationSeeking.Active = true;
-                    Singleton<TransferManager>.instance.AddOutgoingOffer(educationReason, educationSeeking);
-                //break;
-
-                //case TransferManager.TransferReason.None:
-                //break;
-                Logging.Message($"CitizenID={citizenID}, looking for education");
+                // Look for education (this can be parallel with looking for work, above).
+                TransferManager.TransferOffer educationSeeking = default;
+                educationSeeking.Priority = Singleton<SimulationManager>.instance.m_randomizer.Int32(8u);
+                educationSeeking.Citizen = citizenID;
+                educationSeeking.Position = position;
+                educationSeeking.Amount = 1;
+                educationSeeking.Active = true;
+                Singleton<TransferManager>.instance.AddOutgoingOffer(educationReason, educationSeeking);
+                Logging.Message($"...looking for EDU, reason={educationReason}");
             }
 
             // If we got here, we need to continue on to the original method (this is not a young child).
